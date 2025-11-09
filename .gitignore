@@ -1,4 +1,6 @@
 build
+web-ext-artifacts
+.amo-upload-uuid
 
 # Compiled source #
 ###################

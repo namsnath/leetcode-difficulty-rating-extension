@@ -30,6 +30,17 @@ Problems in 1st-62nd weekly contests and problems that did not come from contest
 4. Click `Load unpacked` on the top-left
 5. Select the cloned repository
 
+### Firefox
+#### Testing
+1. Run `make`
+2. Go to `about:debugging` > This Firefox > Load Temporary Addon
+3. Select the generated `build/leetcode-difficulty-rating.zip`
+
+#### Signing for use
+1. Get API Key from https://addons.mozilla.org/es/developers/addon/api/key/
+2. `npx web-ext sign --api-key=<JWT_ISSUER> --api-secret <JWT_SECRET> --channel unlisted`
+3. Drag generated `.xpi` file from the `web-ext-artifacts` folder to Firefox to install
+
 ## Acknowledgement
 
 * Ratings are based on <https://github.com/zerotrac/leetcode_problem_rating>

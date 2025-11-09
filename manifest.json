@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Leetcode Difficulty Rating",
-  "version": "1.1.8",
+  "version": "1.2.0",
   "description": "Replace Leetcode problem's difficulty with a more precise contest rating.",
   "permissions": ["storage"],
 
@@ -19,9 +19,18 @@
     }
   ],
   "background": {
-    "service_worker": "src/background.js"
+    "service_worker": "src/background.js",
+    "scripts": ["src/background.js"]
   },
   "action": {
     "default_popup": "src/popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "@leetcode-difficulty-rating.namsnath",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
   }
 }
