@@ -4,5 +4,6 @@ chrome.runtime.onInstalled.addListener(async () => {
     showNA: (await chrome.storage.local.get({showNA: true})).showNA,
     // force refresh cache
     cacheTime: 0,
+    clistCacheTime: 0,
   });
 });

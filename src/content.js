@@ -41,35 +41,91 @@ const getRatings = async () => {
   return ratings;
 };
 
-const replace = (ratings, title, difficulty, showNA) => {
-  if (!title || !difficulty) return;
+const getClistRatings = async () => {
+  const expire = 3600 * 24 * 1000; // cache for 1 day
 
-  const id = title.textContent.split('.')[0];
+  let items = await chrome.storage.local.get(['clistRatings', 'clistCacheTime', 'clistApiKey', 'clistUsername']);
 
-  if (!ratings[id]?.Rating && !showNA) return;
+  if (
+    items.clistRatings &&
+    items.clistCacheTime &&
+    Date.now() < items.clistCacheTime + expire
+  ) {
+    return items.clistRatings;
+  }
 
-  difficulty.textContent = difficulty.textContent.replace(
-    /([Hh]ard|[Mm]ed\.|[Mm]edium|[Ee]asy|简单|中等|困难|\d{3,4}|N\/A)/,
-    ratings[id]?.Rating
-      ? ratings[id].Rating.split('.')[0] // truncate to integer
-      : 'N/A' // no data available
-  );
+  if (!items.clistApiKey || !items.clistUsername) return {};
+
+  const baseUrl = 'https://clist.by:443/api/v4/problem/?resource_id=102&limit=1000';
+  const clistRatings = {};
+
+  async function doFetch(offset) {
+    return await fetch(`${baseUrl}&offset=${offset}`, { headers: { Authorization: `ApiKey ${items.clistUsername}:${items.clistApiKey}` } })
+      .then((res) => res.json());
+  }
+
+  let offset = 0;
+  let result = await doFetch(offset);
+
+  while (result.objects.length > 0) {
+    result.objects.forEach((problem) => {
+      clistRatings[problem.slug] = {
+        id: problem.id,
+        rating: problem.rating || 'N/A',
+        name: problem.name,
+      };
+    });
+
+    offset += result.objects.length;
+    result = await doFetch(offset);
+  }
+
+  await chrome.storage.local.set({ clistRatings, clistCacheTime: Date.now() });
+
+  return clistRatings;
+};
+
+const replace = (ratings, clistRatings, id, slug, difficulty, showNA) => {
+  if (!id || !slug || !difficulty) return;
+  const availableRatings = [];
+
+  const zerotracRating = ratings[id]?.Rating?.split('.')[0];
+  if (zerotracRating) {
+    availableRatings.push(`Z ${zerotracRating}`);
+  }
+
+  const clistRating = clistRatings[slug]?.rating;
+  if (clistRating && clistRating !== 'N/A') {
+    availableRatings.push(`C ${clistRating}`);
+  }
+
+  if (availableRatings.length === 0 && !showNA) return;
+
+  let ratingToShow = 'N/A';
+  if (availableRatings.length > 0) {
+    ratingToShow = availableRatings.join(', ');
+  }
+
+  difficulty.textContent = ratingToShow;
 };
 
 const update = async () => {
   observer.disconnect();
 
   let ratings = await getRatings();
+  let clistRatings = await getClistRatings();
   let showNA = (await chrome.storage.local.get('showNA')).showNA;
 
   let title;
   let difficulty;
+  let id;
+  let slug;
 
   // leetcode.com/problemset/* and leetcode.cn/problemset/*
   document.querySelectorAll('[role="row"]').forEach((ele) => {
     title = ele.querySelector('[role="cell"]:nth-child(2) a');
     difficulty = ele.querySelector('[role="cell"]:nth-child(5) span');
-    replace(ratings, title, difficulty, showNA);
+    replace(ratings, clistRatings, id, slug, difficulty, showNA);
   });
 
   // new leetcode.com/problems/*/
@@ -77,27 +133,31 @@ const update = async () => {
   difficulty = document.querySelector(
     'div > div.text-sm.font-medium.capitalize'
   );
-  replace(ratings, title, difficulty, showNA);
+  replace(ratings, clistRatings, id, slug, difficulty, showNA);
 
   // old leetcode.com/problems/*/
   title = document.querySelector('div[data-cy="question-title"]');
   difficulty = document.querySelector(
     'div[diff="easy"],div[diff="medium"],div[diff="hard"]'
   );
-  replace(ratings, title, difficulty, showNA);
+  replace(ratings, clistRatings, id, slug, difficulty, showNA);
 
   // leetcode.cn/problems/*/
   title = document.querySelector('div[class^="text-title-"]');
   difficulty = document.querySelector('div[class*="text-difficulty-"]');
-  replace(ratings, title, difficulty, showNA);
+  id = title?.textContent.split('.')[0];
+  slug = title?.querySelector('a').getAttribute('href')?.split('/problems/')[1]?.replace('/', '');
+  replace(ratings, clistRatings, id, slug, difficulty, showNA);
 
   // leetcode.com/problem-list/*/
   document
     .querySelectorAll('div > a.group.flex-col, div > div.group.flex-col')
     .forEach((ele) => {
+      id = ele.getAttribute('id');
+      slug = ele.getAttribute('href')?.match('/problems/([^/?]+)')[1];
       title = ele.querySelector('.ellipsis.line-clamp-1');
       difficulty = ele.querySelector('p[class*="text-sd-"]');
-      replace(ratings, title, difficulty, showNA);
+      replace(ratings, clistRatings, id, slug, difficulty, showNA);
     });
 
   observer.observe(document.body, {
